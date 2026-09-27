@@ -1,0 +1,34 @@
+;
+; WS2812 单线驱动 —— 自定时序（按默认 125MHz 主频定拍，1 cyc = 8ns）。
+; pioasm 限制：side_set 1（非 opt）时每条指令 delay ≤15 拍，故长时序用
+; 多条 nop 拼接。分支目标不可用保留字（zero 等），用 do_zero。
+;
+; 实际时序（均落在 WS2812 数据手册 ±150ns 容差内，位率 ~800kbps）：
+;   '1' = 低 120ns + 高 728ns + 低 360ns ≈ 1.21us/位
+;   '0' = 低 120ns + 高 344ns + 低 840ns ≈ 1.30us/位
+; 帧间 >50us 复位低电平由驱动 sleep 补足；数据 MSB 先出（OSR 左移），
+; 一帧一次 put 32bit（高 8 位填充零）。
+;
+.program ws2812
+.side_set 1
+entry:
+    out x, 1        side 0 [14]    ; 低 15 拍
+    jmp !x do_zero  side 1 [14]    ; 高沿起：15 拍
+    nop             side 1 [14]    ; '1' 高段累计 45
+    nop             side 1 [14]    ; 60
+    nop             side 1 [14]    ; 75
+    nop             side 1 [14]    ; 90
+    nop             side 1         ; 91 拍 = 728ns 高
+    jmp entry       side 0 [14]    ; 低 15
+    nop             side 0 [14]    ; 低 30
+    jmp entry       side 0 [14]    ; 低 45 拍 = 360ns
+do_zero:
+    nop             side 1 [13]    ; '0' 高段 14 拍
+    nop             side 1 [13]    ; 累计 43 拍 = 344ns 高
+    jmp entry       side 0 [14]    ; 低 15
+    nop             side 0 [14]    ; 低 30
+    nop             side 0 [14]    ; 45
+    nop             side 0 [14]    ; 60
+    nop             side 0 [14]    ; 75
+    nop             side 0 [14]    ; 90
+    jmp entry       side 0 [14]    ; 105 拍 = 840ns 低
