@@ -12,7 +12,7 @@
  * 常亮的页眉/大字/页脚在屏保期整体休息；不再用纯黑屏/面板级熄屏。
  * 串口命令（USB CDC，serialtap 透传/代理皆可发）：定标免改固件——
  *   cal <toff> <rhoff>   温湿度屏显偏移（#ENV 上报原始值，WFP 约定）
- *   luxcal <A> <gamma>   光照幂律曲线（改换算本身，#ENV lux 跟随）
+ *   luxcal <A> <g> [f]   光照曲线 lux=A*(x-f)^g，x=v/(3.3-v)（#ENV lux 跟随）
  *   cal? / luxcal? / help；参数写 flash 末扇区（cfgstore），断电保持
  * 节奏：DHT 2.5s/次（#ENV 跟随成功读）、光照 0.5s/次、OLED 0.25s 一刷
  * （屏保动画 120ms 一拍）、状态灯 250ms 一拍（绿呼吸=正常，红=DHT 失败，
@@ -41,9 +41,9 @@
 
 #define OLED_ADDR 0x3C
 
-/* 周期性屏保（防烧屏规范，无按键板变体）：UI 10min → 星火动画 2min 循环 */
-#define SCREEN_UI_MS   (10 * 60 * 1000)
-#define SCREEN_ANIM_MS (2 * 60 * 1000)
+/* 周期性屏保（防烧屏规范，无按键板变体）：UI 5min → 星火动画 1min 循环 */
+#define SCREEN_UI_MS   (5 * 60 * 1000)
+#define SCREEN_ANIM_MS (1 * 60 * 1000)
 #define ANIM_TICK_MS   120
 
 typedef enum { SCR_UI, SCR_ANIM } scr_phase_t;
@@ -138,26 +138,31 @@ static size_t s_cmd_len;
 
 static void cmd_dispatch(const char *line)
 {
-    float a, b;
+    float a, b, c;
     if (sscanf(line, "cal %f %f", &a, &b) == 2) {
         printf("> cal t%+.1f rh%+.1f %s\n", (double)a, (double)b,
                cfg_set_trh(a, b) ? "saved" : "save FAILED(生效未持久)");
     } else if (!strcmp(line, "cal?")) {
         printf("> cal t%+.1f rh%+.1f\n",
                (double)cfg_t_off(), (double)cfg_rh_off());
-    } else if (sscanf(line, "luxcal %f %f", &a, &b) == 2) {
-        if (a <= 0 || b <= 0) {
+    } else if (sscanf(line, "luxcal %f %f %f", &a, &b, &c) >= 2) {
+        if (a <= 0 || b <= 0 || c <= 0) {
             printf("> luxcal 参数需 > 0\n");
             return;
         }
-        light_set_cal(a, b);
-        printf("> luxcal A %.2f g %.3f %s\n", (double)a, (double)b,
-               cfg_set_lux(a, b) ? "saved" : "save FAILED(生效未持久)");
+        if (sscanf(line, "luxcal %f %f", &a, &b) == 2) {
+            c = cfg_lux_floor(); /* 第三参缺省 = 保持当前暗地板 */
+        }
+        light_set_cal(a, b, c);
+        printf("> luxcal A %.2f g %.4f f %.3f %s\n", (double)a, (double)b,
+               (double)c,
+               cfg_set_lux(a, b, c) ? "saved" : "save FAILED(生效未持久)");
     } else if (!strcmp(line, "luxcal?")) {
-        printf("> luxcal A %.2f g %.3f（lux=A*(v/(3.3-v))^g；lmv 为原始毫伏）\n",
-               (double)cfg_lux_a(), (double)cfg_lux_gamma());
+        printf("> luxcal A %.2f g %.4f f %.3f（lux=A*(v/(3.3-v)-f)^g；lmv 为原始毫伏）\n",
+               (double)cfg_lux_a(), (double)cfg_lux_gamma(),
+               (double)cfg_lux_floor());
     } else if (!strcmp(line, "help") || !strcmp(line, "?")) {
-        printf("> cal <toff> <rhoff> | cal? | luxcal <A> <gamma> | luxcal? | help\n");
+        printf("> cal <toff> <rhoff> | cal? | luxcal <A> <g> [floor] | luxcal? | help\n");
         printf("> cal 只改屏显（#ENV 报原始值）；luxcal 改 lux 换算（#ENV lux 跟随）；参数断电保持\n");
     } else if (line[0]) {
         printf("> 未知命令（help）\n");
@@ -206,7 +211,7 @@ int main(void)
     printf("[env-station] boot v0.1.0 (rp2040-zero)\n");
 
     cfg_init(); /* 定标参数（flash 持久化）→ 应用到光照曲线 */
-    light_set_cal(cfg_lux_a(), cfg_lux_gamma());
+    light_set_cal(cfg_lux_a(), cfg_lux_gamma(), cfg_lux_floor());
 
     i2c_init(i2c0, 400 * 1000);
     gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);

@@ -10,8 +10,9 @@
  * 命令速查（详见 main.c cmd_dispatch）：
  *   cal <toff> <rhoff>    温湿度屏显偏移（#ENV 上报原始值——WFP 约定，
  *                         平台侧校准才是权威；屏显 = 原始+偏移）
- *   luxcal <A> <gamma>    光照幂律曲线 lux = A×(v/(3.3−v))^gamma
- *                         （改换算本身：#ENV 的 lux 跟着变，lmv 永远是原始毫伏）
+ *   luxcal <A> <g> [f]    光照曲线 lux = A×(x−f)^gamma，x = v/(3.3−v)；
+ *                         f = 暗电压地板（x ≤ f → 0lux；第三参缺省保持现值）
+ *                         （改换算本身：#ENV 的 lux 跟随变，lmv 永远是原始毫伏）
  *   cal? / luxcal?        查询；help 命令列表
  */
 
@@ -22,7 +23,8 @@ float cfg_t_off(void);
 float cfg_rh_off(void);
 float cfg_lux_a(void);
 float cfg_lux_gamma(void);
+float cfg_lux_floor(void);
 
 /* 返回 false = 写入或回读校验失败（参数仍已生效，仅未持久化） */
 bool cfg_set_trh(float toff, float rhoff);
-bool cfg_set_lux(float a, float gamma);
+bool cfg_set_lux(float a, float gamma, float floor_x);

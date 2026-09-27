@@ -1,14 +1,17 @@
 /* 光照采集 —— OUT→GP28（ADC2），3V3 供电。
  *
- * 模块身份（2026-09-27 两点定标实锤）：标称 TEMT6000，实为 **CdS 光敏电阻
- * 模块**（LDR，VCC—LDR—OUT—Rfix—GND，亮→电压升）。证据：57lux↔1837mV 与
- * ~505lux↔~2737mV（AS803 照度计两点）斜率差 6 倍，线性光敏晶体管不可能；
- * 幂律拟合 γ=1.615 恰在 CdS 特征区（0.5~0.7），反推暗阻 ~23kΩ@10lux ≈
- * GL5528 规格。
+ * 模块身份（2026-09-27 定标实锤）：标称 TEMT6000，实为 **CdS 光敏电阻模块
+ * 且带 ~1.75V 暗偏置电压**（LDR 支路 + 未知偏置结构，亮→电压升）。
+ * 证据：AS803 照度计三点——遮光 0lux↔~1750mV、57lux↔1837mV、
+ * ~505lux↔~2737mV——斜率差 6 倍排除线性光敏晶体管；带地板幂律拟合
+ * γ=0.643 落在 CdS 特征区（0.5~0.7），三点误差 <1%。
  *
- * 换算（两点定标，无需知道 Rfix）：**lux = 39.4 × (v/(3.3−v))^1.615**。
- * 量程：v→3.25V 时 ≈4.8klux 起趋于饱和（lmv 恒 ≈3300 = 顶格）；
- * 极暗 v→0 自然收敛到 0。
+ * 换算（三点定标，无需知道 Rfix）：
+ *   x = v/(3.3−v)；**lux = A × (x − floor)^γ**，x ≤ floor（暗地板）→ 0 lux。
+ *   默认 A=216.6、γ=0.6432、floor=1.13（对应 v≈1.75V）。
+ * 量程：v→3.25V 起 ≈11klux 后趋于顶格（lmv 恒 ≈3300）。
+ * 遮光读数若仍偏高（地板漂移），用 `luxcal A gamma floor` 重定标：
+ * floor 取"完全遮光时的 x 值"（x = lmv/(3300−lmv)）。
  */
 #include "light.h"
 
@@ -24,11 +27,13 @@
 
 static float s_cal_a = LIGHT_CAL_A_DEFAULT;     /* 曲线参数（luxcal 可改） */
 static float s_cal_g = LIGHT_CAL_GAMMA_DEFAULT;
+static float s_cal_f = LIGHT_CAL_FLOOR_DEFAULT;
 
-void light_set_cal(float a, float gamma)
+void light_set_cal(float a, float gamma, float floor_x)
 {
     s_cal_a = a;
     s_cal_g = gamma;
+    s_cal_f = floor_x;
 }
 
 /* GP26/27/28/29 = ADC0/1/2/3；本板 GP28 = ADC2 */
@@ -58,7 +63,11 @@ bool light_read(float *lux, uint32_t *mv)
     }
     float v = (float)milliv;
     float x = v / (LIGHT_VREF_MV - v);       /* = Rfix/R_ldr 比例量 */
-    float l = s_cal_a * powf(x, s_cal_g);
+    if (x <= s_cal_f) {                      /* 暗电压地板以下 = 0 lux */
+        *lux = 0.0f;
+        return true;
+    }
+    float l = s_cal_a * powf(x - s_cal_f, s_cal_g);
     *lux = l > LIGHT_MAX_LUX ? LIGHT_MAX_LUX : l;
     return true;
 }
