@@ -19,6 +19,21 @@ rp2040-zero/
   配好 `PICO_SDK_PATH` 后 `cmake -B build && cmake --build build` 即出 UF2；
 - 项目间不共享代码；需要共性时先拷贝，稳定后再考虑抽组件。
 
+### 固件基线规范（全家桶强制）
+
+两条基线对所有 MiBee 固件仓强制执行，主板仓内**每个项目**都必须满足：
+
+1. **看门狗：必须启用**。不允许裸奔主循环——RP2040 上即启用片上硬件看门狗
+   （`watchdog_enable`）并在主循环周期性喂狗；
+2. **Web/API 固件升级（OTA）：硬件允许则必须提供**。本板**无任何无线电**，
+   Web/API OTA 属硬件不允许，规范豁免——升级走 UF2（BOOTSEL 拖拽 / picotool /
+   SWD），serialtap 的 1200bps 触碰软重启进 BOOTSEL 保持免按键体验；给本板
+   加联网伴侣（如经 UART 的 ESP32 网关）后，该规范即恢复约束力。
+
+| 项目 | 看门狗 | Web/API OTA |
+|------|--------|-------------|
+| env-station | ✅ 硬件看门狗（`watchdog_enable(8000, 1)`，8s） | N/A（无网络；UF2/picotool/SWD 为升级路径） |
+
 ---
 
 ## 板子概要

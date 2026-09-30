@@ -19,6 +19,22 @@ Key points of the convention:
   build trio; with `PICO_SDK_PATH` configured, `cmake -B build && cmake --build build` produces the UF2;
 - Projects share no code; when commonality is needed, copy first, and consider extracting a shared component only once things stabilize.
 
+### Firmware baseline norms (mandatory fleet-wide)
+
+Two baselines are mandatory for every MiBee firmware repo, and **every project** inside a
+board repo must satisfy them:
+
+1. **Watchdog: mandatory.** No naked main loops — on RP2040 that means enabling the
+   on-chip hardware watchdog (`watchdog_enable`) and feeding it from the main loop;
+2. **Web/API firmware upgrade (OTA): mandatory where the hardware allows.** This board
+   has **no radio at all**, so web/API OTA is hardware-exempt — upgrades go through UF2
+   (BOOTSEL drag-drop / picotool / SWD), and serialtap's 1200bps-touch soft-reboot into
+   BOOTSEL keeps it hands-free. The norm binds again once a networking companion is added.
+
+| Project | Watchdog | Web/API OTA |
+|---------|----------|-------------|
+| env-station | ✅ hardware watchdog (`watchdog_enable(8000, 1)`, 8 s) | N/A (no network; UF2/picotool/SWD is the path) |
+
 ---
 
 ## Board Overview
