@@ -2,6 +2,8 @@
 
 [中文文档](README.zh.md) | [English](README.md)
 
+<img src="docs/images/rp2040-zero.jpg" alt="Waveshare RP2040-Zero" width="420">
+
 主板目录规范的一块板。**本目录按"主板为根"规范组织**：
 
 ```

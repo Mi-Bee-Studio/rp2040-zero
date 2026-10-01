@@ -2,6 +2,8 @@
 
 [中文文档](README.zh.md) | [English](README.md)
 
+<img src="docs/images/rp2040-zero.jpg" alt="Waveshare RP2040-Zero" width="420">
+
 A board under the board-centric repo convention. **This directory is organized by the "board as root" rule**:
 
 ```
