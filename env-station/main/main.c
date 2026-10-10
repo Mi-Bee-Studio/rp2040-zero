@@ -23,6 +23,7 @@
  * 1200bps 触摸复位进 BOOTSEL（SDK 默认开）：免按 BOOT 刷机。
  */
 #include <stdio.h>
+#include "pico/unique_id.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -209,6 +210,16 @@ int main(void)
         sleep_ms(100);
     }
     printf("[env-station] boot v0.1.0 (rp2040-zero)\n");
+
+    /* SELFTEST 自检行（工作区 AGENTS.md"固件自检行"规范）：一行可 grep 的
+     * 开机体检证据，serialtap selftest 按前缀聚合做台架异常发现。 */
+    {
+        char uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
+        pico_get_unique_board_id_string(uid, sizeof uid);
+        printf("SELFTEST: board=rp2040-zero-env-station fw=v0.1.0 chip=RP2040"
+               " flash=%uK uid=%.16s\n",
+               (unsigned)(PICO_FLASH_SIZE_BYTES / 1024), uid);
+    }
 
     cfg_init(); /* 定标参数（flash 持久化）→ 应用到光照曲线 */
     light_set_cal(cfg_lux_a(), cfg_lux_gamma(), cfg_lux_floor());
